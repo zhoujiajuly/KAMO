@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the KAMO manuscript."
+title: "KAMO: Reliability-Routed Multiscale Probabilistic Forecasting under Corrupted Contexts"
+type: software
+version: 0.1.0
+date-released: 2026-09-06
+authors:
+  - family-names: Zhou
+    given-names: Jia
+  - family-names: Miao
+    given-names: Xiaoyu
+  - family-names: Liu
+    given-names: Tao
