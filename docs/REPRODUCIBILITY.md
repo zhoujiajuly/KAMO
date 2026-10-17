@@ -1,158 +1,45 @@
-# Reproducing the KAMO experiments
+# R2 reproducibility protocol
 
-Run all commands from the repository root. Generated artifacts default to `runs/` and `results/`; both directories are ignored by Git.
+The authoritative runner is `run_r2.py`. Every run writes its complete configuration, protocol fingerprint, data audit, candidate records, selected checkpoint, final-seed records, and test metrics below the requested output directory.
 
-## 1. Verify the code
+## Data partitions
 
-```bash
-python3 -m compileall kamo *.py
-python3 test_revision_invariants.py
-python3 test_c5_tuning_audit.py
-```
+For continuous datasets, `kamo_r2/data.py` uses chronological target partitions of 70% training, 5% tuning, 5% clean calibration, and 20% test. Overlapping windows may use preceding context, but every target belongs to exactly one partition. Standardizers are fitted only on training observations. PhysioNet uses patient-disjoint partitions.
 
-The invariant tests check causal robust statistics, reliability sharing and ablations, missing-target masking, probabilistic metrics, seeded corruptions, calibration safeguards, and parameter-matching rules.
+## Search and final training
 
-## 2. Inspect planned jobs
+Each searched configuration evaluates 12 deterministic candidates. The candidate score is the mean normalized CRPS across five tuning conditions: clean, Gaussian noise (0.10), impulse corruption (rate 0.01 and magnitude 5), random missingness (0.10), and block missingness (0.10).
 
-Every suite stage supports `--dry-run`:
+Candidate search and checkpoint selection use the tuning partition only. Final models are trained for seeds 2026, 2027, and 2028. The scalar standard-deviation temperature is fitted by Gaussian NLL on the disjoint clean calibration partition and is frozen for all test conditions.
+
+## Frozen recipes
 
 ```bash
-python3 run_revision_suite.py \
-  --stage gate \
-  --data-root ./datasets \
-  --runs-root ./runs \
-  --results-root ./results \
-  --dry-run
+python3 run_r2.py --recipe core      --stage plan --data-root ./datasets --out ./r2_runs
+python3 run_r2.py --recipe controls  --stage plan --data-root ./datasets --out ./r2_runs
+python3 run_r2.py --recipe highdim   --stage plan --data-root ./datasets --out ./r2_runs
+python3 run_r2.py --recipe physionet --stage plan --data-root ./datasets --out ./r2_runs
+python3 run_r2.py --recipe long      --stage plan --data-root ./datasets --out ./r2_runs
 ```
 
-Use dry-run output to verify datasets, models, seeds, horizons, widths, and output locations before consuming GPU time.
+Together, the non-control recipes define the 93 principal configurations in the final R2 manuscript. The controls recipe adds 28 inherited component controls, giving 121 active configurations. The long recipe has 38 main-table configurations. Six additional completed H=192 configurations are retained only in the electronic evidence archive and are explicitly marked as not used in Table 6.
 
-## 3. Experiment stages
+## Resumption and parallel execution
 
-| Stage | Purpose |
-|---|---|
-| `gate` | shared vs separately learned vs mask-only reliability controls |
-| `role_ablation` | normalization, routing, residual-gate, and uncertainty-scale roles |
-| `long` | horizons 192, 336, and 720 with three seeds |
-| `transfer` | reliability adapters on PatchTST and iTransformer backbones |
-| `capacity` | parameter-matched robust PatchTST and TimeMixer controls |
-| `highdim` | Electricity, optionally Traffic |
-| `real_missing` | PhysioNet 2012 naturally missing observations |
-| `mixer` | no mixer, low-rank values, and dense mixer |
-| `sensitivity` | robust-window, Huber threshold, patch, recent-window, and scale settings |
-| `postgate` | all post-gate stages |
-| `all` | gate plus all post-gate stages; use only after reviewing the gate |
-
-The predeclared reporting seeds are `2026,2027,2028`.
-
-## 4. Run the gate first
+Completed artifacts are reused only after their protocol fingerprint and configuration digest match. The launcher shards cases, not seeds within a case:
 
 ```bash
-python3 run_revision_suite.py \
-  --stage gate \
-  --data-root ./datasets \
-  --runs-root ./runs \
-  --results-root ./results \
-  --seeds 2026,2027,2028 \
-  --device cuda \
-  --workers 4
-
-python3 collect_revision_results.py --results-root ./results
-python3 audit_revision_runs.py \
-  --runs-root ./runs \
-  --results-root ./results
+python3 launch_r2.py --data-root ./datasets --out ./r2_runs --gpus 0,1,2 --recipe long --stage train
+python3 launch_r2.py --data-root ./datasets --out ./r2_runs --gpus 0,1,2 --recipe long --stage evaluate --eval-set all
+python3 run_r2.py --data-root ./datasets --out ./r2_runs --recipe long --stage report
 ```
 
-The gate is a resource-management check, not a replacement for reporting seed-level outcomes and uncertainty.
-
-## 5. Run later stages
-
-After reviewing the gate:
+Profiling must be serialized on one idle physical GPU:
 
 ```bash
-python3 run_revision_suite.py \
-  --stage postgate \
-  --data-root ./datasets \
-  --runs-root ./runs \
-  --results-root ./results \
-  --seeds 2026,2027,2028 \
-  --device cuda \
-  --workers 4
+python3 launch_r2.py --data-root ./datasets --out ./r2_runs --gpus 0 --recipe core --stage profile
 ```
 
-Individual stages can be run by replacing `postgate` with the stage name. Add `--include-traffic` to the high-dimensional stage only when the Traffic dataset has been prepared.
+## Scope
 
-## 6. Safe multi-GPU sharding
-
-Use independent terminals and disjoint filters. For example:
-
-```bash
-# GPU 0
-CUDA_VISIBLE_DEVICES=0 python3 run_revision_suite.py \
-  --stage long --datasets ETTh2 --seeds 2026,2027 \
-  --data-root ./datasets --runs-root ./runs --results-root ./results \
-  --device cuda --workers 4
-
-# GPU 1
-CUDA_VISIBLE_DEVICES=1 python3 run_revision_suite.py \
-  --stage long --datasets ETTh2 --seeds 2028 \
-  --data-root ./datasets --runs-root ./runs --results-root ./results \
-  --device cuda --workers 4
-```
-
-Do not launch overlapping dataset/model/seed jobs into the same run directory.
-
-## 7. Validation-only tuning
-
-The compact generic tuner is:
-
-```bash
-python3 tune_validation.py \
-  --stage search \
-  --data-root ./datasets \
-  --search-root ./runs/tuning_search \
-  --final-root ./runs/tuned_final \
-  --output ./results/best_validation_configs.json \
-  --device cuda
-```
-
-Search jobs use validation data only. Final test evaluation must occur only after configurations have been frozen. `run_c5_tuning_audit.py` preserves the more extensive equal-budget tuning and integrity-audit protocol used during revision; inspect its plan first with `--stage plan`.
-
-## 8. Corruption evaluation
-
-`evaluate_robustness.py` accepts explicit conditions. The paper protocol groups Gaussian noise, impulses, random missingness, and block missingness as known corruptions; level shift, gradual drift, sensor freezing, and heavy-tailed noise are held-out corruption families.
-
-```bash
-python3 evaluate_robustness.py \
-  --run-dir ./runs/ETTh2/kamo_v5_shared/example_s2026_h96 \
-  --data-root ./datasets \
-  --split test \
-  --calibration none \
-  --device cuda \
-  --conditions clean gaussian:0.1 impulse:0.05:5.0 random_missing:0.3 \
-               block_missing:0.2 level_shift:2.0 gradual_drift:2.0 \
-               sensor_freeze:0.30:0.25 heavy_tail:0.20:20.0 \
-  --output ./results/example_robustness.csv
-```
-
-## 9. Efficiency
-
-Benchmark selected checkpoints on the same device and batch size:
-
-```bash
-python3 benchmark_efficiency.py \
-  --run-dir ./runs/ETTh2/kamo_v5_shared/example_s2026_h96 \
-  --data-root ./datasets \
-  --device cuda \
-  --batch-size 16 \
-  --warmup 20 \
-  --repeats 200 \
-  --output ./results/efficiency.csv
-```
-
-Report trainable parameters, median batch latency, throughput, and peak allocated GPU memory. Hardware and software versions should accompany any comparison.
-
-## 10. Artifact audit
-
-For a complete revision-style run, use `formal_revision_audit.py` with every run root and result root that is intentionally in scope. The audit verifies expected configurations and evidence files; it does not retrain models.
-
+The repository implements a common probabilistic evaluation protocol. Controlled baseline adaptations are identified in `BASELINE_SOURCES.md`; results should not be described as exact reproductions of unrelated official training recipes.

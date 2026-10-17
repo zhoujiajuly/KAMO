@@ -1,3 +1,10 @@
+"""Shared loader primitives and legacy split helpers.
+
+The manuscript R2 entry point does not construct partitions in this module.
+``run_r2.py`` calls :mod:`kamo_r2.data`, which implements the frozen
+70/5/5/20 train/tuning/calibration/test protocol. This module remains because
+the R2 loader reuses dataset parsing and standardization primitives from it.
+"""
 from __future__ import annotations
 
 import gzip

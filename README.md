@@ -2,154 +2,87 @@
 
 Official research code for **KAMO: Reliability-Routed Multiscale Probabilistic Forecasting under Corrupted Contexts**.
 
-KAMO estimates a causal observation-reliability signal and reuses it for robust normalization, multiscale branch routing, residual control, and predictive-scale adjustment. The repository also contains controlled probabilistic implementations of the comparison backbones and the scripts used for corruption, ablation, sensitivity, calibration, transfer, long-horizon, high-dimensional, real-missingness, and efficiency experiments.
+This revision reproduces the R2 protocol used by the manuscript: a chronological 70%/5%/5%/20% train/tuning/calibration/test split for continuous datasets, 12 deterministic candidates per searched configuration, candidate selection by the mean normalized CRPS over five tuning conditions, and final seeds 2026, 2027, and 2028.
 
-## Repository status
-
-This folder is a GitHub release candidate prepared from the final revision code. It contains source code and reproducibility scripts only. Datasets, checkpoints, tuning runs, logs, and generated result files are intentionally excluded.
-
-The included PatchTST, iTransformer, TimeMixer, and VPNet-style models are controlled probabilistic adaptations implemented in this repository for a common evaluation protocol. They must not be described as unmodified code copied from the respective authors' official repositories.
-
-## Contents
+## Current R2 entry points
 
 ```text
-kamo/
-  model.py                KAMO and forecasting model definitions
-  robustifier.py          causal robust statistics and reliability modules
-  baselines.py            controlled probabilistic comparison backbones
-  data.py                 dataset loaders and chronological splits
-  engine.py               training, corruption, and evaluation engine
-  metrics.py              probabilistic and point metrics
-  plotting.py             plotting utilities
-train.py                  train/validation/test entry point
-evaluate_robustness.py    clean and corrupted-context evaluation
-run_revision_suite.py     resumable paper experiment suite
-tune_validation.py        validation-only equal-budget tuning
-benchmark_efficiency.py   latency, throughput, and memory benchmark
-calibrate_*.py            checkpoint-bound uncertainty calibration
-run_transfer_*.py         reliability-transfer validation protocols
-test_*.py                 mechanism and protocol tests
-docs/DATASETS.md          download sources and required directory layout
-docs/REPRODUCIBILITY.md   experiment stages and reproduction commands
+run_r2.py             authoritative single-process experiment runner
+launch_r2.py          disjoint multi-GPU launcher
+kamo_r2/data.py       70/5/5/20 split and patient-disjoint PhysioNet split
+kamo_r2/protocol.py   frozen recipes, 12-candidate spaces, five tuning conditions
+kamo_r2/training.py   tuning-only checkpoint selection and final training
+kamo_r2/evaluation.py fixed corruption, calibration, and probability metrics
+kamo_r2/analysis.py   summaries and paired bootstrap records
+tests/test_r2_*.py    protocol and implementation tests
+BASELINE_SOURCES.md   model provenance and adaptation scope
 ```
+
+The older top-level revision utilities are retained for provenance. They are not the entry points for the R2 tables. `tune_validation.py` is now only a compatibility wrapper around `run_r2.py`; the earlier six-candidate workflow is retired.
 
 ## Installation
 
-Python 3.8 or newer is recommended. Install a PyTorch build appropriate for your CPU/CUDA environment first, following the [official PyTorch instructions](https://pytorch.org/get-started/locally/), and then install the remaining dependencies:
+Install a PyTorch build appropriate for the local CUDA environment, then:
 
 ```bash
-git clone <YOUR_GITHUB_REPOSITORY_URL>
-cd KAMO
-
 python3 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
+source .venv/bin/activate             # Windows: .venv\Scripts\activate
 python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements.txt
 ```
 
-Confirm that the implementation-level invariants pass:
+Datasets are not redistributed. Their sources and required layout are described in [`docs/DATASETS.md`](docs/DATASETS.md).
+
+## Verify the frozen plan without training
 
 ```bash
-python3 test_revision_invariants.py
-python3 test_c5_tuning_audit.py
+python3 run_r2.py --recipe core --stage plan --data-root ./datasets --out ./r2_runs
+python3 run_r2.py --recipe long --stage plan --data-root ./datasets --out ./r2_runs
 ```
 
-These tests use synthetic tensors and do not require downloading a dataset.
+The final long-horizon recipe contains the 38 configurations reported in Table 6: eight methods at H=336 and H=720 for ETTh2 and Weather, plus KAMO, iTransformer, and VPNet at H=192.
 
-## Datasets
+## Run on multiple GPUs
 
-Datasets are not redistributed in this repository. Download them from their original or benchmark-maintainer sources and place them under `./datasets`. Exact sources, expected filenames, PhysioNet layout, and preprocessing cautions are given in [docs/DATASETS.md](docs/DATASETS.md).
-
-The shortest setup for ETTh2 is:
-
-```text
-datasets/
-  ETTh2.csv
-```
-
-## Quick start
-
-Train the final shared-reliability KAMO configuration on ETTh2:
+`launch_r2.py` assigns disjoint model/dataset cases to the listed physical GPUs and fails closed before advancing to another recipe:
 
 ```bash
-python3 train.py \
-  --dataset ETTh2 \
+python3 launch_r2.py \
   --data-root ./datasets \
-  --output-root ./runs \
-  --run-name example_s2026_h96 \
-  --model kamo_v5_shared \
-  --seq-len 96 \
-  --pred-len 96 \
-  --seed 2026 \
-  --device auto
+  --out ./r2_runs \
+  --gpus 0,1,2 \
+  --recipe core,controls \
+  --stage train
 ```
 
-The run directory contains the frozen configuration, scaler, validation-selected `best.pt`, training history, and test metrics.
-
-Evaluate the checkpoint under clean and corrupted contexts:
+Evaluation and reporting are separate stages:
 
 ```bash
-python3 evaluate_robustness.py \
-  --run-dir ./runs/ETTh2/kamo_v5_shared/example_s2026_h96 \
-  --data-root ./datasets \
-  --device auto \
-  --calibration none \
-  --conditions \
-    clean gaussian:0.1 gaussian:0.3 impulse:0.05:5.0 \
-    random_missing:0.1 random_missing:0.3 block_missing:0.2 \
-    level_shift:2.0 gradual_drift:2.0 sensor_freeze:0.30:0.25 \
-    heavy_tail:0.20:20.0 \
-  --output ./results/ETTh2_example.csv
+python3 launch_r2.py --data-root ./datasets --out ./r2_runs --gpus 0,1,2 --recipe core --stage evaluate --eval-set all
+python3 run_r2.py --data-root ./datasets --out ./r2_runs --recipe core --stage report
 ```
 
-Use `--split validation` for architecture selection and `--split test` only for final reporting.
+## R2 safeguards
 
-## Reproducing the experiment suite
+- Continuous data: chronological 70%/5%/5%/20% train/tuning/calibration/test split.
+- PhysioNet: patient-disjoint partitions.
+- Standardization fitted on training data only.
+- Twelve deterministic candidates per searched configuration.
+- Candidate score: mean normalized CRPS over clean, Gaussian noise, impulse noise, random missingness, and block missingness on the tuning split.
+- Checkpoints selected by clean tuning normalized CRPS.
+- Scalar Gaussian temperature fitted only on the disjoint clean calibration partition and frozen for every test condition.
+- Final seeds: 2026, 2027, and 2028.
+- Test conditions never select a candidate, checkpoint, or calibration temperature.
 
-Inspect the frozen job plan without training:
+The controlled PatchTST-, iTransformer-, TimeMixer-, and VPNet-style probabilistic models are local adaptations for the common R2 protocol; they are not claimed to be unmodified official-repository reproductions. See `BASELINE_SOURCES.md`.
+
+## Tests
 
 ```bash
-python3 run_revision_suite.py \
-  --stage gate \
-  --data-root ./datasets \
-  --runs-root ./runs \
-  --results-root ./results \
-  --dry-run
+python3 -m unittest discover -s tests -p "test_r2_*.py"
 ```
-
-Run the three-seed shared-reliability gate:
-
-```bash
-python3 run_revision_suite.py \
-  --stage gate \
-  --data-root ./datasets \
-  --runs-root ./runs \
-  --results-root ./results \
-  --seeds 2026,2027,2028 \
-  --device cuda \
-  --workers 4
-```
-
-Do not launch `--stage all` before checking the gate output. The full order, stage meanings, multi-GPU sharding examples, and audit commands are documented in [docs/REPRODUCIBILITY.md](docs/REPRODUCIBILITY.md).
-
-## Checkpoint policy
-
-Checkpoints are not committed to Git because they are large and configuration-specific. Every run records the seed and complete configuration needed to retrain it. If pretrained weights are released later, publish only the selected final checkpoints as a versioned GitHub Release or a DOI-backed archive such as Zenodo, together with checksums and matching configuration files.
-
-## Reproducibility safeguards
-
-- chronological train/validation/test splits;
-- train-split-only standardization;
-- validation CRPS for checkpoint and hyperparameter selection;
-- seeds 2026, 2027, and 2028 for reported multi-seed experiments;
-- corruption generation with explicit, seeded condition specifications;
-- separate validation and test evaluation modes;
-- parameter, latency, throughput, and peak-memory reporting;
-- fail-closed artifact audits for the revision experiment suite.
 
 ## Citation
-
-The manuscript is currently under review. Until final bibliographic metadata are available, cite the repository and manuscript title:
 
 ```bibtex
 @article{zhou2026kamo,
@@ -162,5 +95,4 @@ The manuscript is currently under review. Until final bibliographic metadata are
 
 ## License
 
-No open-source license has been selected yet. Add the chosen license before making the repository public; without a license, GitHub users may view the code but do not automatically receive reuse rights.
-
+The repository includes third-party license notices under `kamo_r2/vendor/`. No additional project-wide open-source license is granted unless a root license file states otherwise.
