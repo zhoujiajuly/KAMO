@@ -28,7 +28,8 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("--dataset", default="ETTh1", choices=list(DATASETS))
     parser.add_argument(
         "--data-root",
-        default=r"C:\Users\34872_wfgzfou\Documents\Codex\2026-07-23\0723\datasets",
+        default="datasets",
+        help="Dataset root directory (default: ./datasets)",
     )
     parser.add_argument("--output-root", default="runs")
     parser.add_argument("--run-name", default=None, help="Optional leaf directory; prevents tuning runs from overwriting each other")
