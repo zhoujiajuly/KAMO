@@ -1,4 +1,4 @@
-"""Reproducible, non-destructive timing for R2 efficiency experiments.
+"""Reproducible, non-destructive timing for efficiency experiments.
 
 All methods must be run on an otherwise idle device with the same batch, dtype,
 warmup and repetition counts. CPU allocator peak memory is intentionally absent;

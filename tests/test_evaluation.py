@@ -10,9 +10,9 @@ import torch
 from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 from kamo.data import Standardizer
-from kamo_r2.evaluation import (deterministic_corruption, evaluate_model,
+from kamo_experiments.evaluation import (deterministic_corruption, evaluate_model,
                                 fit_std_temperature, ordered_window_metadata)
-from kamo_r2.analysis import _assert_aligned, paired_block_bootstrap, summarize_results
+from kamo_experiments.analysis import _assert_aligned, paired_block_bootstrap, summarize_results
 
 
 class ConstantForecaster(torch.nn.Module):
@@ -128,7 +128,7 @@ class EvaluationTests(unittest.TestCase):
             evaluate_model(ConstantForecaster(std=float("nan")), DataLoader(self.dataset(), batch_size=3), "cpu")
 
     def test_actual_kamo_and_cyclical_factory_full_evaluation(self):
-        from kamo_r2.factory import build_model
+        from kamo_experiments.factory import build_model
         previous = torch.get_num_threads()
         torch.set_num_threads(1)
         try:

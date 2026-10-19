@@ -48,16 +48,16 @@ datasets/
       ...
 ```
 
-For PhysioNet, the loader creates hourly cached arrays under `physionet2012/kamo_cache/` by default. Use `--cache-dir` to place this cache elsewhere.
+For PhysioNet, the current runner creates hourly cached arrays under the chosen output directory's `data_cache/`.
 
 ## Additional supported loaders
 
-`kamo/data.py` also contains loaders for Solar, Illness, Los-loop, Chengdu, PEMS03/04/07/08, METR-LA, PEMS-BAY, and a synthetic-physics CSV. These were inherited from the broader experimental code base. Inspect the `DATASETS` mapping at the top of `kamo/data.py` for exact filenames before using them.
+`kamo/data.py` contains additional parsers inherited from earlier research. They are not part of the predefined manuscript recipes. Inspect `kamo/data.py` and `kamo_experiments/data.py` before using a custom dataset; the predefined runner excludes prewindowed traffic data.
 
 ## Split and normalization behavior
 
-- Ordinary long-series datasets use chronological train/validation/test partitions.
-- Standardization statistics are computed from the training partition only.
-- PhysioNet uses the predefined A/B/C sets as train/validation/test and preserves observation masks.
+- Continuous datasets use chronological 70% training, 5% tuning, 5% calibration, and 20% test target partitions. This is not the standard ETT calendar split.
+- Standardization statistics are computed from observed training values only.
+- PhysioNet uses set A for training, patient-disjoint subsets of set B for tuning and calibration, and set C for test; observation masks are preserved.
 - Static PhysioNet descriptors are excluded; only the 37 dynamic variables listed in `kamo/data.py` are used.
 

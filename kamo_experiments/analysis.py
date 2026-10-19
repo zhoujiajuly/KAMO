@@ -1,6 +1,6 @@
-"""Auditable R2 summaries and paired dependence-aware uncertainty estimates.
+"""Auditable summaries and paired dependence-aware uncertainty estimates.
 
-Run: python -m kamo_r2.analysis --results runs --output analysis --reference kamo_s
+Run: python -m kamo_experiments.analysis --results runs --output analysis --reference kamo_s
 Confidence intervals are descriptive, conditional on the fitted training seeds.
 Training-seed variation is separately tabulated, never counted as extra windows.
 """

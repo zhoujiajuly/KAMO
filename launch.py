@@ -12,7 +12,7 @@ import time
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--data-root")
-    p.add_argument("--out", default="r2_runs")
+    p.add_argument("--out", default="runs")
     p.add_argument("--gpus", default="0,1", help="Physical visible GPU IDs, or cpu for smoke tests")
     p.add_argument("--recipe", default="core", help="Comma list, executed in order; e.g. core,controls")
     p.add_argument("--stage", default="train", choices=["plan", "check", "train", "evaluate", "all", "profile"])
@@ -37,7 +37,7 @@ def main():
         try:
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             for index, gpu in enumerate(gpu_ids):
-                cmd = [sys.executable, "-u", str(root / "run_r2.py"), "--recipe", recipe,
+                cmd = [sys.executable, "-u", str(root / "run.py"), "--recipe", recipe,
                        "--stage", args.stage, "--out", str(out), "--shards", str(len(gpu_ids)),
                        "--shard-index", str(index), "--device", "cpu" if gpu == "cpu" else "cuda:0"]
                 if data_root: cmd.extend(["--data-root", data_root])

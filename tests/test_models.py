@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import torch
 
-from kamo_r2.models import (NEW_MODEL_NAMES, OfficialGaussianForecaster,
+from kamo_experiments.models import (NEW_MODEL_NAMES, OfficialGaussianForecaster,
                             build_new_model, new_model_search_space)
 
 

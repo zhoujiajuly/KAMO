@@ -1,6 +1,6 @@
 """Official mean backbones with an explicitly documented Gaussian scale head.
 
-Never import these classes under the legacy ``DLinearForecaster`` name: R1's
+Never import these classes under the earlier ``DLinearForecaster`` name: that
 checkpoint architecture is different. The four vendored backbones are unmodified.
 """
 from __future__ import annotations

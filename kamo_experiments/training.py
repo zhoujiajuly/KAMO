@@ -83,7 +83,7 @@ def train_model(config, bundle, output_dir, device="cpu", fingerprint=None):
     if epochs < 1 or patience < 1:
         raise ValueError("epochs and patience must be positive")
     if any(config.get(k) is not None for k in ("max_train_batches", "max_val_batches", "max_test_batches")):
-        raise ValueError("Production R2 training must use complete loaders, not max-batch caps")
+        raise ValueError("Production training must use complete loaders, not max-batch caps")
     device = torch.device(device)
     amp_enabled = bool(config.get("amp", False))
     if amp_enabled and device.type != "cuda":

@@ -1,8 +1,8 @@
 import unittest
-from kamo_r2.protocol import candidates, recipe_cases, case_shard, case_name
-from run_r2 import conditions_for, make_plan, parse_args, case_protocol
+from kamo_experiments.protocol import candidates, recipe_cases, case_shard, case_name
+from run import conditions_for, make_plan, parse_args, case_protocol
 from types import SimpleNamespace
-from kamo_r2.storage import digest
+from kamo_experiments.storage import digest
 
 
 class ProtocolTests(unittest.TestCase):

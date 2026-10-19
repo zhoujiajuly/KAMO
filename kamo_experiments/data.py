@@ -78,7 +78,7 @@ def _resolve_values(root, name):
             return _load_values(candidate, spec), candidate, spec
         except (FileNotFoundError, NotADirectoryError) as exc:
             errors.append(str(exc))
-        # Common Time-Series-Library CSV distribution, in addition to R1 text layout.
+        # Common Time-Series-Library CSV distribution, in addition to the text layout.
         if name in {"electricity", "exchange"}:
             for filename in (["electricity.csv"] if name == "electricity" else ["exchange_rate.csv", "exchange.csv"]):
                 alt = dict(kind="csv", path=filename)
@@ -98,7 +98,7 @@ def build_bundle(name, data_root, seq_len=96, pred_len=96, batch_size=16,
         if dimensions is not None:
             raise ValueError("Dimension subsets are for continuous datasets, not patients")
         old = _build_physionet2012(name, root, DATASETS[name], seq_len, pred_len,
-                                  batch_size, workers, Path(cache_dir) if cache_dir else root / "kamo_r2_cache")
+                                  batch_size, workers, Path(cache_dir) if cache_dir else root / "kamo_experiments_cache")
         val = old.val.dataset
         patients = np.unique(val.indices[:, 0])
         cut = max(1, int(len(patients) * .7))
@@ -113,7 +113,7 @@ def build_bundle(name, data_root, seq_len=96, pred_len=96, batch_size=16,
                      tuning_patients=patients[:cut].tolist(), calibration_patients=patients[cut:].tolist())
     else:
         if DATASETS[name]["kind"] == "prewindowed":
-            raise ValueError("R2 recipe excludes prewindowed traffic; do not reconstruct it as a continuous stream")
+            raise ValueError("This recipe excludes prewindowed traffic; do not reconstruct it as a continuous stream")
         values, actual_root, spec = _resolve_values(root, name)
         values = np.asarray(values, dtype=np.float32)
         if values.ndim == 1:

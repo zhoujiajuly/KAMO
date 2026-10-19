@@ -5,7 +5,7 @@ import random
 import zlib
 from .factory import NEW_MODELS
 
-PROTOCOL_VERSION = "R2-20261008-v1"
+PROTOCOL_VERSION = "KAMO-20261019-v1"
 CORE_DATASETS = ["ETTh1", "ETTh2", "weather", "exchange"]
 CORE_MODELS = ["kamo_s", "dlinear", "cyclenet", "tqnet", "patchtst", "itransformer",
                "timemixer", "vpnet", "patchtst_robust", "itransformer_robust", "timemixer_robust"]

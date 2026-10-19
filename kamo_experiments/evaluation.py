@@ -1,4 +1,4 @@
-"""Full, ordered R2 evaluation; no first-N-batches truncation.
+"""Full, ordered evaluation; no first-N-batches truncation.
 
 The compact NPZ contains every window's masked average score and observed count.
 Optional prediction shards contain every target/mean/std/mask (can be very large).

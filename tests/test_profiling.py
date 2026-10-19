@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import torch
 from torch import nn
 
-from kamo_r2.profiling import profile_model, profile_sweep
+from kamo_experiments.profiling import profile_model, profile_sweep
 
 
 class TinyForecaster(nn.Module):

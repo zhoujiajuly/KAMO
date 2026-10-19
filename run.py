@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Main entry: python run_r2.py --help. Run from the extracted package directory."""
+"""Main entry: python run.py --help. Run from the extracted package directory."""
 from __future__ import annotations
 import argparse
 import copy
@@ -14,17 +14,17 @@ from pathlib import Path
 import numpy as np
 import torch
 from kamo.engine import set_seed
-from kamo_r2.data import build_bundle
-from kamo_r2.factory import build_model
-from kamo_r2.protocol import (PROTOCOL_VERSION, TUNE_CONDITIONS, SEEDS, recipe_cases,
+from kamo_experiments.data import build_bundle
+from kamo_experiments.factory import build_model
+from kamo_experiments.protocol import (PROTOCOL_VERSION, TUNE_CONDITIONS, SEEDS, recipe_cases,
                               candidates, case_name, case_shard, reference_config)
-from kamo_r2.storage import (digest, source_digest, read_json, write_json, load_checkpoint)
+from kamo_experiments.storage import (digest, source_digest, read_json, write_json, load_checkpoint)
 
 
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     p.add_argument("--data-root", default=os.environ.get("KAMO_DATA_ROOT"))
-    p.add_argument("--out", default="r2_runs")
+    p.add_argument("--out", default="runs")
     p.add_argument("--recipe", choices=["pilot", "core", "controls", "highdim", "physionet", "long", "dimension"], default="core")
     p.add_argument("--stage", choices=["plan", "check", "train", "evaluate", "all", "report", "profile", "profile-scaling"], default="plan")
     p.add_argument("--datasets", help="Comma separated filter; does not add unplanned cases")
@@ -92,8 +92,8 @@ def make_plan(args, cases):
                 selection="checkpoint=min clean tuning normalized CRPS; candidate=min mean of 5 tuning-condition normalized CRPS",
                 calibration="clean, disjoint calibration split; scalar Gaussian NLL-optimal temperature; frozen for all test corruptions",
                 control_rule="inherit principal selected hyperparameters; retrain each ablation from scratch; NOT independently optimal controls",
-                caveats=["Existing test sets were viewed in R1; new selections use tuning only.",
-                         "Not an official-recipe leaderboard replication. See BASELINE_SOURCES.md.",
+                caveats=["Test sets were viewed in earlier manuscript work; current selections use tuning only.",
+                         "Not an official-recipe leaderboard replication. See docs/MODEL_SOURCES.md.",
                          "Trial budget equality does not imply equal compute or optimal tuning.",
                          "Synthetic corruption does not establish real-fault robustness."])
 
@@ -134,8 +134,8 @@ def loaded_model(config, bundle, checkpoint, device):
 
 
 def choose_candidate(args, case, bundle, root, protocol, device):
-    from kamo_r2.training import train_model
-    from kamo_r2.evaluation import evaluate_model
+    from kamo_experiments.training import train_model
+    from kamo_experiments.evaluation import evaluate_model
     identity = digest(protocol)
     selection_path = root / "selection.json"
     if selection_path.exists():
@@ -192,7 +192,7 @@ def choose_candidate(args, case, bundle, root, protocol, device):
 
 
 def train_case(args, case, bundle, root, protocol, device):
-    from kamo_r2.training import train_model
+    from kamo_experiments.training import train_model
     candidate = choose_candidate(args, case, bundle, root, protocol, device)
     identity = digest(protocol)
     for seed in args.seed_list:
@@ -205,7 +205,7 @@ def train_case(args, case, bundle, root, protocol, device):
 
 
 def conditions_for(which):
-    from kamo_r2.evaluation import CORE_CONDITIONS, SEVERITY_CONDITIONS
+    from kamo_experiments.evaluation import CORE_CONDITIONS, SEVERITY_CONDITIONS
     if which == "minimal": raw = ["clean", "gaussian:0.10", "level_shift:1.0"]
     elif which == "core": raw = CORE_CONDITIONS
     elif which == "severity": raw = SEVERITY_CONDITIONS
@@ -219,7 +219,7 @@ def conditions_for(which):
 
 
 def evaluate_case(args, case, bundle, root, protocol, device):
-    from kamo_r2.evaluation import evaluate_model, fit_std_temperature, condition_slug
+    from kamo_experiments.evaluation import evaluate_model, fit_std_temperature, condition_slug
     selection = read_json(root / "selection.json")
     if selection["protocol_fingerprint"] != digest(protocol):
         raise RuntimeError("Evaluation protocol changed; keep training flags identical or use new --out")
@@ -270,7 +270,7 @@ def evaluate_case(args, case, bundle, root, protocol, device):
 
 
 def profile_case(args, case, bundle, root, device):
-    from kamo_r2.profiling import profile_model
+    from kamo_experiments.profiling import profile_model
     run_dir = root / "final" / ("seed_%d" % args.seed_list[0])
     run = read_json(run_dir / "run_config.json")
     model = loaded_model(run["config"], bundle, run_dir / "best.pt", device)
@@ -289,7 +289,7 @@ def profile_case(args, case, bundle, root, device):
 
 def profile_scaling(args, device):
     from types import SimpleNamespace
-    from kamo_r2.profiling import profile_model
+    from kamo_experiments.profiling import profile_model
     # One axis at a time, common fixed batch and FP32; synthetic inputs measure COST only.
     cases = [(d, 96, 96) for d in [8, 32, 64, 128, 321, 512]]
     cases += [(64, l, 96) for l in [48, 192, 336, 720]]
@@ -326,7 +326,7 @@ def main(argv=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu") if args.device == "auto" else torch.device(args.device)
     out = Path(args.out); out.mkdir(parents=True, exist_ok=True)
     if args.stage == "report":
-        from kamo_r2.analysis import summarize_results
+        from kamo_experiments.analysis import summarize_results
         print(summarize_results(out, out / "reports", bootstrap_replicates=args.bootstrap)); return
     if args.stage == "profile-scaling":
         profile_scaling(args, device); return

@@ -1,86 +1,69 @@
 # KAMO
 
-Official research code for **KAMO: Reliability-Routed Multiscale Probabilistic Forecasting under Corrupted Contexts**.
+Code for **KAMO: Reliability-Routed Multiscale Probabilistic Forecasting under Corrupted Contexts**.
 
-This revision reproduces the R2 protocol used by the manuscript: a chronological 70%/5%/5%/20% train/tuning/calibration/test split for continuous datasets, 12 deterministic candidates per searched configuration, candidate selection by the mean normalized CRPS over five tuning conditions, and final seeds 2026, 2027, and 2028.
+The repository has one supported experiment workflow. `run.py` trains, evaluates, and summarizes individual experiment recipes; `launch.py` distributes cases across GPUs. The `kamo_experiments/` package implements the current protocol. The `kamo/` package supplies model components, data parsers, and shared utilities used by that workflow. Older standalone training scripts were removed from the current tree; their source remains available in Git history.
 
-## Current R2 entry points
+## Install
 
-```text
-run_r2.py             authoritative single-process experiment runner
-launch_r2.py          disjoint multi-GPU launcher
-kamo_r2/data.py       70/5/5/20 split and patient-disjoint PhysioNet split
-kamo_r2/protocol.py   frozen recipes, 12-candidate spaces, five tuning conditions
-kamo_r2/training.py   tuning-only checkpoint selection and final training
-kamo_r2/evaluation.py fixed corruption, calibration, and probability metrics
-kamo_r2/analysis.py   summaries and paired bootstrap records
-tests/test_r2_*.py    protocol and implementation tests
-BASELINE_SOURCES.md   model provenance and adaptation scope
-```
-
-The older top-level revision utilities are retained for provenance. They are not the entry points for the R2 tables. `tune_validation.py` is now only a compatibility wrapper around `run_r2.py`; the earlier six-candidate workflow is retired.
-
-## Installation
-
-Install a PyTorch build appropriate for the local CUDA environment, then:
+Use Python 3.8 or newer. Install a PyTorch build appropriate for your machine, then run from the repository root:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate             # Windows: .venv\Scripts\activate
-python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements.txt
+python3 -m unittest discover -s tests -v
 ```
 
-Datasets are not redistributed. Their sources and required layout are described in [`docs/DATASETS.md`](docs/DATASETS.md).
+Datasets are downloaded separately. Follow [dataset preparation](docs/DATASETS.md) and place them under `datasets/`, or pass another directory with `--data-root`.
 
-## Verify the frozen plan without training
+## First run
+
+Inspect the predefined cases without training or downloading data:
 
 ```bash
-python3 run_r2.py --recipe core --stage plan --data-root ./datasets --out ./r2_runs
-python3 run_r2.py --recipe long --stage plan --data-root ./datasets --out ./r2_runs
+python3 run.py --recipe core --stage plan --out ./runs
 ```
 
-The final long-horizon recipe contains the 38 configurations reported in Table 6: eight methods at H=336 and H=720 for ETTh2 and Weather, plus KAMO, iTransformer, and VPNet at H=192.
-
-## Run on multiple GPUs
-
-`launch_r2.py` assigns disjoint model/dataset cases to the listed physical GPUs and fails closed before advancing to another recipe:
+To train and evaluate one example, first place `ETTh2.csv` in `datasets/`, then run:
 
 ```bash
-python3 launch_r2.py \
-  --data-root ./datasets \
-  --out ./r2_runs \
-  --gpus 0,1,2 \
-  --recipe core,controls \
-  --stage train
+python3 run.py --recipe core --datasets ETTh2 --models kamo_s --stage train --data-root ./datasets --out ./runs
+python3 run.py --recipe core --datasets ETTh2 --models kamo_s --stage evaluate --eval-set core --data-root ./datasets --out ./runs
+python3 run.py --recipe core --stage report --out ./runs
 ```
 
-Evaluation and reporting are separate stages:
+Training includes the declared hyperparameter search and three final seeds, so it can take hours even for one case. `--stage plan` is the fast way to inspect the workload. A completed case is reused only when its saved configuration, data, and source fingerprint agree. Use a new `--out` directory if the protocol or source changes.
+
+To run across three GPUs:
 
 ```bash
-python3 launch_r2.py --data-root ./datasets --out ./r2_runs --gpus 0,1,2 --recipe core --stage evaluate --eval-set all
-python3 run_r2.py --data-root ./datasets --out ./r2_runs --recipe core --stage report
+python3 launch.py --data-root ./datasets --out ./runs --gpus 0,1,2 --recipe core --stage train
+python3 launch.py --data-root ./datasets --out ./runs --gpus 0,1,2 --recipe core --stage evaluate --eval-set all
+python3 run.py --recipe core --stage report --out ./runs
 ```
 
-## R2 safeguards
+`launch.py` writes worker logs under `runs/logs/`. It executes comma-separated recipes in order; for example, `--recipe core,controls` trains the main cases before controls that inherit their selected settings.
 
-- Continuous data: chronological 70%/5%/5%/20% train/tuning/calibration/test split.
-- PhysioNet: patient-disjoint partitions.
-- Standardization fitted on training data only.
-- Twelve deterministic candidates per searched configuration.
-- Candidate score: mean normalized CRPS over clean, Gaussian noise, impulse noise, random missingness, and block missingness on the tuning split.
-- Checkpoints selected by clean tuning normalized CRPS.
-- Scalar Gaussian temperature fitted only on the disjoint clean calibration partition and frozen for every test condition.
-- Final seeds: 2026, 2027, and 2028.
-- Test conditions never select a candidate, checkpoint, or calibration temperature.
+## Experiment recipes
 
-The controlled PatchTST-, iTransformer-, TimeMixer-, and VPNet-style probabilistic models are local adaptations for the common R2 protocol; they are not claimed to be unmodified official-repository reproductions. See `BASELINE_SOURCES.md`.
+| Recipe | Purpose |
+|---|---|
+| `core` | Main clean and corrupted-context comparisons on ETTh1, ETTh2, Weather, and Exchange |
+| `controls` | Component controls; run `core` first in the same output directory |
+| `highdim` | Electricity comparison |
+| `physionet` | Naturally missing clinical observations |
+| `long` | Long-horizon comparisons on ETTh2 and Weather |
+| `dimension` | Controlled variable-count scaling |
+| `pilot` | Small protocol check before a larger run |
 
-## Tests
+The results reported in the manuscript use 93 main model–dataset–window configurations and 28 controls. The `long` recipe contains the 38 configurations used in the long-horizon table. The script's `plan` stage prints the exact cases and search budget. See [reproduction details](docs/REPRODUCIBILITY.md) for data partitions, tuning, calibration, resumption, and profiling.
 
-```bash
-python3 -m unittest discover -s tests -p "test_r2_*.py"
-```
+## Evaluation protocol
+
+Continuous datasets use chronological 70% training, 5% tuning, 5% calibration, and 20% test target partitions. PhysioNet uses patient-disjoint partitions. Standardization is fitted on training observations only. Each searched configuration receives 12 deterministic candidates; selection uses mean normalized CRPS over five tuning conditions. Final results use seeds 2026, 2027, and 2028. Calibration fits one Gaussian scale temperature on the separate clean calibration partition; test data do not select settings.
+
+The probabilistic comparison models share this evaluation protocol. Some are local adaptations of published backbones, not unmodified runs of their authors' original training pipelines. Their provenance and changes are documented in [model sources](docs/MODEL_SOURCES.md).
+
+Datasets, checkpoints, logs, and generated results are not stored in Git. Third-party license notices are included beside vendored models. No project-wide open-source license is granted unless a root license file states otherwise.
 
 ## Citation
 
@@ -92,7 +75,3 @@ python3 -m unittest discover -s tests -p "test_r2_*.py"
   note   = {Manuscript under review}
 }
 ```
-
-## License
-
-The repository includes third-party license notices under `kamo_r2/vendor/`. No additional project-wide open-source license is granted unless a root license file states otherwise.

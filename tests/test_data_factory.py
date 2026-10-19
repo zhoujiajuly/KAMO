@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 import torch
 
-from kamo_r2.data import build_bundle, EpisodeWindows
-from kamo_r2.factory import ALIASES, build_model
+from kamo_experiments.data import build_bundle, EpisodeWindows
+from kamo_experiments.factory import ALIASES, build_model
 
 
 def _write_csv(root, values):

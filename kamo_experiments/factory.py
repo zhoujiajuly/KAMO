@@ -2,7 +2,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 import torch
 from torch import nn
-import legacy_train
+from . import model_builder as legacy_train
 from kamo.robustifier import RobustifiedInputWrapper
 
 ALIASES = {

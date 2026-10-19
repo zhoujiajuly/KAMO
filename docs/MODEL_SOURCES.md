@@ -1,9 +1,9 @@
-# R2 added baselines: source and adaptation disclosure
+# Model sources and adaptations
 
-Prepared 2026-10-08. The mean-prediction backbones in `kamo_r2/vendor/` are
+The mean-prediction backbones in `kamo_experiments/vendor/` are
 the authors' official Python files, copied without architectural edits from
 the exact commits below. Their full Apache-2.0 licenses are included alongside
-the files. The wrapper is implemented separately in `kamo_r2/models.py`.
+the files. The wrapper is implemented separately in `kamo_experiments/models.py`.
 There are no extra neural-network dependencies beyond PyTorch and NumPy.
 
 | Method | Official publication | Repository and pinned commit | Local source |
@@ -36,7 +36,7 @@ not establish that a method will perform well on these corruption conditions.
    verify this equality against the vendored backbones.
 3. **DLinear is corrected.** This implementation really uses the official
    moving-average trend/seasonal decomposition, with two separate linear maps.
-   NLinear uses last-value centering and one linear map. Old R1 weights named
+   NLinear uses last-value centering and one linear map. Earlier weights named
    `dlinear` are not compatible and must not be relabeled or silently loaded.
 4. **Cycle phase.** `cycle_index` is the global integer start index of the input
    history. It must travel with each sample through shuffling, validation, test,
@@ -81,7 +81,7 @@ against official code, but numerical results still need the user's server runs.
 From the package root:
 
 ```bash
-python -m unittest discover -s tests -p test_r2_models.py -v
+python -m unittest discover -s tests -p test_models.py -v
 ```
 
 Tests cover shape, finite forward/backward values, positive scales, exact
@@ -89,9 +89,9 @@ upstream mean equality, missing-value invariance, cycle metadata requirements,
 batch-order invariance, DLinear decomposition and individual linear heads.
 Verified locally with PyTorch 1.11.0 CPU; no long model training was performed.
 
-## Audit of inherited R1 comparisons
+## Locally implemented comparisons
 
-This is a code/provenance audit, not a fresh benchmark reproduction. The R1
+This is a code/provenance audit, not a fresh benchmark reproduction. The inherited
 implementations in `kamo/baselines.py` are retained for continuity. They are
 local probabilistic implementations and must not be presented as unchanged
 official-code replications merely because a paper name is used as a run key.
@@ -101,7 +101,7 @@ official-code replications merely because a paper name is used as a run key.
 | `patchtst` | Channel-independent patch embedding, a PyTorch pre-norm TransformerEncoder with GELU, LayerNorm, learned patch positions and flattened Gaussian head | Local probabilistic PatchTST adaptation; mean/backbone exact equality to the official implementation has not been established |
 | `itransformer` | Linear embedding of each variable's history, added trainable variable-ID embedding, PyTorch pre-norm TransformerEncoder and Gaussian head | Local probabilistic iTransformer adaptation; the variable-ID embedding and exact normalization/attention path need disclosure |
 | `timemixer` | Pooled resolutions, separate moving-average seasonal/trend MLPs within each scale, independent horizon heads and learned mixture weights | Compact TimeMixer-style multiscale control; it is not the full official past-decomposable-mixing/future-multipredictor implementation |
-| `vpnet` | Patch encoder/decoder, depthwise 2-D variate/patch convolution, latent forecast MLP, separate variance projection and reconstruction loss | R1 probabilistic VPNet adaptation; source comments claim official-design ancestry, but this package does not certify upstream checkpoint/code equivalence |
+| `vpnet` | Patch encoder/decoder, depthwise 2-D variate/patch convolution, latent forecast MLP, separate variance projection and reconstruction loss | Local probabilistic VPNet adaptation; source comments claim official-design ancestry, but this package does not certify upstream checkpoint/code equivalence |
 | `timemixer_robust` | The inherited compact TimeMixer-style control preceded by KAMO's parameter-free causal median/MAD robustifier | **New direct architectural control**, not an independently published robust forecasting method and not an official robust TimeMixer variant |
 | `patchtst_robust`, `itransformer_robust` | Same parameter-free robustifier preceding the corresponding local probabilistic adaptation | Authors' fixed-preprocessing controls, distinct from published point-forecast baselines |
 

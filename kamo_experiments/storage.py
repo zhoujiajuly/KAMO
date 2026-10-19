@@ -25,7 +25,7 @@ def digest(value):
 
 def source_digest():
     root = Path(__file__).resolve().parents[1]
-    paths = sorted(list((root / "kamo").glob("*.py")) + list((root / "kamo_r2").rglob("*.py")) + [root / "legacy_train.py", root / "run_r2.py"])
+    paths = sorted(list((root / "kamo").glob("*.py")) + list((root / "kamo_experiments").rglob("*.py")) + [root / "run.py", root / "launch.py"])
     hashed = hashlib.sha256()
     for path in paths:
         if path.is_file():

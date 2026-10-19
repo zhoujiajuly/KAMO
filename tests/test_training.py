@@ -8,10 +8,10 @@ import numpy as np
 import torch
 
 from kamo.data import Standardizer
-from kamo_r2.data import SeriesWindows, make_loader
-from kamo_r2.training import train_model
-from kamo_r2 import training
-from kamo_r2.storage import load_checkpoint
+from kamo_experiments.data import SeriesWindows, make_loader
+from kamo_experiments.training import train_model
+from kamo_experiments import training
+from kamo_experiments.storage import load_checkpoint
 
 
 class TestTraining(unittest.TestCase):
